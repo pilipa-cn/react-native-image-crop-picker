@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -38,6 +39,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -347,6 +349,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
             }
 
             cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraCaptureURI);
+            cameraIntent.putExtra(MediaStore.EXTRA_SCREEN_ORIENTATION, Configuration.ORIENTATION_PORTRAIT);
 
             if (cameraIntent.resolveActivity(activity.getPackageManager()) == null) {
                 resultCollector.notifyProblem(E_CANNOT_LAUNCH_CAMERA, "Cannot launch camera");
@@ -574,11 +577,21 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         }
         validateImage(path);
 
+        // 压缩图片之前读取原始角度, 修复三星手机拍照横屏bug
+        int angle = PhotoBitmapUtils.readPictureDegree(path);
+
         // if compression options are provided image will be compressed. If none options is provided,
         // then original image will be returned
         File compressedImage = compression.compressImage(activity, options, path);
         String compressedImagePath = compressedImage.getPath();
         BitmapFactory.Options options = validateImage(compressedImagePath);
+
+        if(angle != 0) {
+            // 得到旋转后的照片路径
+            compressedImagePath = PhotoBitmapUtils.amendRotatePhoto(compressedImagePath, angle, activity);
+            System.out.println("compressedImagePath=" + compressedImagePath);
+            options = validateImage(compressedImagePath);
+        }
 
         image.putString("path", "file://" + compressedImagePath);
         image.putInt("width", options.outWidth);
